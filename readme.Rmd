@@ -1,0 +1,211 @@
+---
+title: 'Maximum likelihood Optimization for a logistic regression model '
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+author: 'Wajih Arfaoui'
+---
+
+
+## 1. Introduction
+
+The aim of this assignement is to define the logistic regression statistical model and optimize its corresponding likelihood.To do so, I choose to use the `icu` dataset that contains data of over 200 patients from an intensive care unit, and it tells whether the patient survived or died after having the medical treatement.  
+For this task, I will be using the `optimx()`function from `optimx`package. I believe that the advantage from using this function instead of `optim()`is that it is easier to do comparison between the different optimisation methods. 
+
+## 2. Logistic Regression Model  
+
+In order to build the model, I chose to check whether the probability of surviving ($P(Y=1)$) during the ICU is related to `age` ($x_1$) and `sex` ($x_2$). 
+for a single training data point, logistic regression assumes: 
+$$P(Y=1| x_1,x_2) = \sigma(z)   \\\ = \frac{e^{z}}{1+e^{z}} \  where \ z=\theta_0 + \sum_{i=1}^2 \theta_ix_i $$  
+As shown above, $\sigma(z)$ is defined as the logistic (**sigmoid**) function, turning any score $z$ into a number between 0 and 1 that is interpreted as a probability.  
+
+The main purpose is to find values of theta $\theta$ that maximize that probability for all data. To do so, we need to go through 2 main steps:   
+1. Write the **log-likelihood** function   
+2. Use `optimx()` to find optimal values of $\theta$ that maximize the log-likelihood function.   
+
+## 3. Log Likelihood 
+
+Based on the **Bernouli** distribution function, the likelihood function for all the data can be written as follow:  
+$$L(\theta) = \prod_{i = 1}^{2} P(Y=y^{i} | X= x^{i}) \\ = \prod_{i = 1}^{2} \sigma(\theta^Tx^{i})^{y^i}. [1 - \sigma(\theta^Tx^{i})]^{1-y^i}$$
+Since it is not easy to maximize the function while having a multiplication of probabilities, I will be opting for the log-likelihood function where the multiplication will become a sum:  
+$$LL(\theta) = \sum_{i = 1}^{2} y^i log\ \sigma(\theta^Tx^i)+(1-y^i)log[1-\sigma(\theta^Tx^i)] $$
+```{r}
+
+# Create the log likelihood function for logistic regression model
+likefunc <- function(par){
+  con <- par[1]
+  beta1 <- par[2]
+  beta2 <- par[3]
+  
+  y <- icu_data$sta
+  x1 <- icu_data$age
+  x2 <- icu_data$gender
+  
+  eq <- con + beta1*x1 + beta2*x2
+  sig <- exp(eq)/(1+exp(eq))
+  
+  logl <- -sum(y*log(sig)+(1-y)*log(1-sig))
+  logl
+}
+
+```
+
+Note that I put -sum(), since I want to find the maximum of the log-likelihood function.
+
+## 4. Optimization
+As the log-likelihood function is already set, we can proceed and use the `optimx()` function to find the maximum of the log-likelihood function.  
+We start by initiating all the parameters at 0 as shown in the R code below:  
+
+```{r eval=FALSE}
+
+# Maximize the log-likelihood function
+library(optimx)
+sol <- optimx(par = c(const  = 0,
+                      beta1 = 0, 
+                      beta2 = 0), 
+              fn = likefunc, 
+              gr=NULL,
+              control = list(trace = 0,all.methods = TRUE))
+
+```
+
+As you can see in the comparison results' table, multiple algorithms converged and gave results for the three parameters but these estimates are slightly different from one method to another. 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+# Maximize the log-likelihood function
+library(optimx)
+library(aplore3)
+library(numDeriv)
+library(stats)
+library(optextras)
+library(dplyr)
+  
+# load the dataset & apply changes
+
+icu_data <- as.data.frame(icu[c("gender","age","sta")])
+icu_data$gender <- ifelse(icu_data$gender == "Male",1,0)
+icu_data$sta <- ifelse(icu_data$sta == "Died",0,1)
+
+# create the log likelihood function for logistic regression model
+
+likefunc <- function(par){
+  con <- par[1]
+  beta1 <- par[2]
+  beta2 <- par[3]
+  
+  y <- icu_data$sta
+  x1 <- icu_data$age
+  x2 <- icu_data$gender
+  
+  eq <- con + beta1*x1 + beta2*x2
+  sig <- exp(eq)/(1+exp(eq))
+  
+  logl <- -sum(y*log(sig)+(1-y)*log(1-sig))
+  logl
+}
+
+
+# Maximize the log-likelihood function
+
+sol <- optimx(par = c(const  = 0,
+                      beta1 = 0, 
+                      beta2 = 0), 
+              fn = likefunc, 
+              gr=NULL,
+              control = list(trace = 0,all.methods = TRUE))
+
+# print optimization reuslts
+
+summary(sol, order="convcode")%>% 
+  select(c("const","beta1","beta2","value"))
+
+```
+
+A way to choose the best algorithm on my opinion, is to compare the estimated parameters values with those of the `glm()` function
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+
+# Maximize the log-likelihood function
+library(optimx)
+library(aplore3)
+library(numDeriv)
+library(stats)
+library(optextras)
+library(dplyr)
+  
+# load the dataset & apply changes
+
+icu_data <- as.data.frame(icu[c("gender","age","sta")])
+icu_data$gender <- ifelse(icu_data$gender == "Male",1,0)
+icu_data$sta <- ifelse(icu_data$sta == "Died",0,1)
+
+# create the log likelihood function for logistic regression model
+
+likefunc <- function(par){
+  con <- par[1]
+  beta1 <- par[2]
+  beta2 <- par[3]
+  
+  y <- icu_data$sta
+  x1 <- icu_data$age
+  x2 <- icu_data$gender
+  
+  eq <- con + beta1*x1 + beta2*x2
+  sig <- exp(eq)/(1+exp(eq))
+  
+  logl <- -sum(y*log(sig)+(1-y)*log(1-sig))
+  logl
+}
+
+
+# Maximize the log-likelihood function
+
+sol <- optimx(par = c(const  = 0,
+                      beta1 = 0, 
+                      beta2 = 0), 
+              fn = likefunc, 
+              gr=NULL,
+              control = list(trace = 0,all.methods = TRUE))
+
+# Apply the glm function to get coefficients
+
+glm_model <- glm(sta ~ age + gender, 
+                 data = icu_data,
+                 family = binomial(link = "logit"))
+
+
+# Comparison 
+
+glm_coef <- unname(coef(glm_model))
+ll_coef <- coef(sol)
+
+lapply(1:nrow(ll_coef), function(i){
+  
+  optimisation_algorithm <- attributes(ll_coef)$dimnames[[1]][i]
+  
+  mle_glm1 <- (ll_coef[i, "const" ] - glm_coef[1])
+  mle_glm2 <- (ll_coef[i, "beta1"] - glm_coef[2])
+  mle_glm3 <- (ll_coef[i, "beta2"] - glm_coef[3])
+  
+  mean_difference <- mean(mle_glm1, mle_glm2, mle_glm3, na.rm = TRUE)
+  
+  data.frame(optimisation_algorithm, mean_difference)
+  
+}) %>% bind_rows() %>% 
+      filter(!is.na(mean_difference)) %>% 
+      mutate(mean_difference = abs(mean_difference)) %>% 
+      arrange(mean_difference)
+
+```
+
+This mean difference comparison between the different algorithms of the log-likelihood function and the glm model shows that **nlminb** algorithm results to the most similar estimates compared to the `glm()` functions ones. Overall we can say that the optimisation of the logistic regression model using the log-likelihood function worked out well. 
+
+## References 
+
+- <https://web.stanford.edu/class/archive/cs/cs109/cs109.1178/lectureHandouts/220-logistic-regression.pdf>  
+- <https://learninglab.gitlabpages.inria.fr/mooc-rr/mooc-rr-ressources/module1/ressources/introduction_to_markdown.html#fractions-binomial-coefficients-square-roots>  
+- <https://www.youtube.com/watch?v=TM1lijyQnaI>  
+- <https://www.joshua-entrop.com/post/optim_logit_reg/>  
+- <https://www.r-bloggers.com/2016/11/why-optim-is-out-of-date/>  
